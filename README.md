@@ -1,4 +1,4 @@
-# 󰏖 pkg-browser.zsh
+# 󰏖 pkg-browser
 
 An interactive, modern terminal-based package browser and manager for **Debian, Ubuntu, and Termux (Android)**. Built entirely in Zsh, leveraging the power of `fzf` for an ultra-fast, minimalist, and responsive visual interface.
 
