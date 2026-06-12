@@ -56,7 +56,7 @@ pkg install zsh fzf curl bat glow chafa
 
 1. **Clone or Download the Script:**
    ```bash
-   git clone https://github.com/yourusername/pkg-browser.git
+   https://github.com/Lakmal2078/pkgstore_termux.git
    cd pkg-browser
    ```
 
