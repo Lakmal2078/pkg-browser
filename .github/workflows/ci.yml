@@ -1,0 +1,29 @@
+name: CI Syntax & Lint Checks
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  lint-and-validate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update -y
+          sudo apt-get install -y zsh fzf shellcheck
+
+      - name: Validate Zsh syntax
+        run: |
+          zsh -n pkg-browser.zsh
+
+      - name: Validate Bash installer scripts
+        run: |
+          bash -n install.sh
+          bash -n uninstall.sh
+          shellcheck install.sh uninstall.sh

@@ -19,6 +19,7 @@ Styled with a sleek **Tokyo Night** and custom pastel theme layout, featuring sm
 * **󰍉 Deep File Search:** Search and find which package owns a specific file path or executable.
 * **🎨 Theme Engine:** Toggle between predefined themes (Tokyo Night, Cyberpunk, Nord, Gruvbox, Rose Pine, Monochrome) using a visual theme picker.
 * **󰇚 Markdown Integration:** Integrates with `glow` to render rich markdown-style changelogs.
+* **🛡️ Security Hardened:** TOCTOU symlink protection, parameter sanitization, regex package validation, and safe subshell execution.
 
 ---
 
@@ -54,9 +55,35 @@ pkg install zsh fzf curl bat glow chafa
 
 ## 🚀 Quick Start & Installation
 
-1. **Clone or Download the Script:**
+### Option 1: Automated Installer (Recommended)
+
+Clone the repository and run the automated installer:
+```bash
+git clone https://github.com/Lakmal2078/pkg-browser.git
+cd pkg-browser
+./install.sh
+```
+
+The installer verifies all dependencies, places `pkg-browser` in your system `$PATH`, and creates a handy short alias `pkgb`.
+
+You can then launch the browser anytime by running:
+```bash
+pkg-browser
+# or simply:
+pkgb
+```
+
+To uninstall at any time:
+```bash
+./uninstall.sh         # Keeps local cache
+./uninstall.sh --purge # Completely purges binaries and cache
+```
+
+### Option 2: Manual Run
+
+1. **Clone the Repository:**
    ```bash
-   https://github.com/Lakmal2078/pkgstore_termux.git
+   git clone https://github.com/Lakmal2078/pkg-browser.git
    cd pkg-browser
    ```
 
@@ -70,11 +97,6 @@ pkg install zsh fzf curl bat glow chafa
    ./pkg-browser.zsh
    ```
 
-*(Optional)* Create an alias in your `~/.zshrc` to open it quickly from anywhere:
-```bash
-alias pkgb="~/path/to/pkg-browser.zsh"
-```
-
 ---
 
 ## ⌨️ Interactive Keybindings
@@ -83,7 +105,7 @@ Once inside the browser, the following hotkeys are available to manage your work
 
 | Keybinding | Action |
 | :--- | :--- |
-| **`ENTER`** | Install or Remove the currently selected package(s) |
+| **`ENTER`** | Install or Remove the currently selected package(s) with confirmation |
 | **`TAB`** | Toggle multi-selection (Select multiple packages at once) |
 | **`CTRL-F`** | Cycle filters between: `All` ➜ `Installed` ➜ `Available` |
 | **`CTRL-T`** | Cycle preview tab: `Info` ➜ `Deps` ➜ `Files` ➜ `Log` |
@@ -103,7 +125,12 @@ The script stores local configs, logs, and pre-parsed packages lists inside the 
 
 ---
 
+## 📄 License
+
+This project is licensed under the [MIT License](LICENSE).
+
+---
+
 ## 🤝 Contributing & Support
 
 Suggestions and improvements are always welcome. Feel free to fork the repository, open an issue, or submit a pull request!
-```.
