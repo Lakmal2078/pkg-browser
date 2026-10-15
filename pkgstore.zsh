@@ -49,7 +49,7 @@ export IS_TERMUX
 
 # ── Cache paths ─────────────────────────────────────────────────
 CACHE_DIR="${XDG_CACHE_HOME:-$HOME/.cache}/pkg-browser"
-mkdir -p "$CACHE_DIR"
+mkdir -m 0700 -p "$CACHE_DIR"
 CACHE_ALL="$CACHE_DIR/all.txt"
 CACHE_INST="$CACHE_DIR/installed.txt"
 CACHE_AVAIL="$CACHE_DIR/available.txt"
@@ -57,7 +57,7 @@ CACHE_TS="$CACHE_DIR/timestamp"
 CACHE_FILES="$CACHE_DIR/files.txt"
 CACHE_FILES_TS="$CACHE_DIR/files_timestamp"
 CACHE_PREVIEW_DIR="$CACHE_DIR/previews"
-mkdir -p "$CACHE_PREVIEW_DIR"
+mkdir -m 0700 -p "$CACHE_PREVIEW_DIR"
 ACTIVITY_LOG="$CACHE_DIR/activity.log"
 THEME_FILE="$CACHE_DIR/theme"
 export CACHE_DIR CACHE_ALL CACHE_INST CACHE_AVAIL ACTIVITY_LOG CACHE_PREVIEW_DIR
@@ -123,10 +123,19 @@ _save_theme()  { echo "$CURRENT_THEME" > "$THEME_FILE" }
 _saved_theme() { [[ -f "$THEME_FILE" ]] && cat "$THEME_FILE" || echo "cyber" }
 
 # ================================================================
-#  ANIMATED SPINNER
+#  ANIMATED SPINNER & CLEANUP
 # ================================================================
 _SPINNER_PID=""
 _SPINNER_FRAMES=('⠋' '⠙' '⠹' '⠸' '⠼' '⠴' '⠦' '⠧' '⠇' '⠏')
+_CLEANUP_TMP_DIR=""
+
+_cleanup() {
+  _spinner_stop
+  if [[ -n "$_CLEANUP_TMP_DIR" && -d "$_CLEANUP_TMP_DIR" ]]; then
+    rm -rf "$_CLEANUP_TMP_DIR"
+    _CLEANUP_TMP_DIR=""
+  fi
+}
 
 _spinner_start() {
   local msg="${1:-Loading}"
@@ -140,7 +149,7 @@ _spinner_start() {
     done
   } &
   _SPINNER_PID=$!
-  trap '_spinner_stop' INT TERM EXIT
+  trap '_cleanup' INT TERM EXIT
 }
 
 _spinner_stop() {
@@ -159,7 +168,7 @@ _log_activity() {
   local action="$1" pkg="$2"
   printf '%s  %-8s  %s\n' "$(date '+%Y-%m-%d %H:%M')" "$action" "$pkg" >> "$ACTIVITY_LOG"
   if [[ -f "$ACTIVITY_LOG" ]]; then
-    local tmp; tmp=$(mktemp)
+    local tmp; tmp=$(mktemp "$CACHE_DIR/activity.XXXXXX" 2>/dev/null || mktemp)
     tail -200 "$ACTIVITY_LOG" > "$tmp" && mv "$tmp" "$ACTIVITY_LOG"
   fi
 }
@@ -479,6 +488,8 @@ _ensure_cache() {
 
 _get_pkg_info() {
   local pkg="$1"
+  [[ -z "$pkg" ]] && return
+  [[ ! "$pkg" =~ '^[a-z0-9][a-z0-9+.-]*$' ]] && return
   local cache_file="$CACHE_PREVIEW_DIR/${pkg}.txt"
   local max_age=300
   local now; now=$(date +%s)
@@ -780,11 +791,11 @@ _preview_tab_log() {
       if (( USE_GLOW )); then
         printf '### Changelog (Live)\n\n'
         printf '```text\n'
-        curl -s --max-time 5 "$uri" 2>/dev/null | head -30
+        curl -s --proto '=http,https' --max-time 5 "$uri" 2>/dev/null | head -30
         printf '```\n'
       else
         printf '  \033[1;33mChangelog\033[0m (live):\n\n'
-        curl -s --max-time 5 "$uri" 2>/dev/null \
+        curl -s --proto '=http,https' --max-time 5 "$uri" 2>/dev/null \
           | head -30 | awk '{printf "  \033[37m%s\033[0m\n", $0}'
       fi
     else
@@ -828,6 +839,7 @@ _pkg_preview() {
   [[ -z "$pkg" ]] && return
   pkg="${pkg// /}"; pkg="${pkg%% *}"
   [[ -z "$pkg" ]] && return
+  [[ ! "$pkg" =~ '^[a-z0-9][a-z0-9+.-]*$' ]] && return
 
   local tab; tab=$(cat "$TAB_FILE" 2>/dev/null || echo "info")
   local inst; inst=$(dpkg-query -W -f='${Status} ${Version}' "$pkg" 2>/dev/null)
@@ -912,16 +924,16 @@ _do_action() {
   if [[ ${#to_install} -gt 0 ]]; then
     print -P "\n${C_OK}[+] Installing: ${to_install[*]}${C_RST}"
     _log_activity "install" "${to_install[*]}"
-    (( IS_TERMUX )) && pkg install -y "${to_install[@]}" \
-                    || ${SUDO} apt-get install -y "${to_install[@]}"
+    (( IS_TERMUX )) && pkg install -y -- "${to_install[@]}" \
+                    || ${SUDO} apt-get install -y -- "${to_install[@]}"
   fi
   if [[ ${#to_remove} -gt 0 ]]; then
     print -P "\n${C_WARN}[-] Removing:   ${to_remove[*]}${C_RST}"
     print -n "Confirm removal? [y/N] "; read -r ans
     if [[ "$ans" =~ ^[Yy]$ ]]; then
       _log_activity "remove" "${to_remove[*]}"
-      (( IS_TERMUX )) && pkg uninstall -y "${to_remove[@]}" \
-                      || ${SUDO} apt-get remove -y "${to_remove[@]}"
+      (( IS_TERMUX )) && pkg uninstall -y -- "${to_remove[@]}" \
+                      || ${SUDO} apt-get remove -y -- "${to_remove[@]}"
     fi
   fi
   rm -f "$CACHE_TS"
@@ -961,7 +973,7 @@ _file_search() {
         --ansi --prompt=" 󰍉 [file search] > " \
         --header="  Path/filename fragment  [ESC] back  [ENTER] open pkg" \
         --header-lines=1 \
-        --preview="pkg=\$(echo {-1}|tr -d '()'); zsh -c 'source ${(q)script_path}; _pkg_preview \$pkg' 2>/dev/null" \
+        --preview="pkg=\$(echo {-1}|tr -d '()'); zsh -c 'source \"\$1\"; _pkg_preview \"\$2\"' -- ${(q)script_path} \"\$pkg\"" \
         --preview-window="down:40%:wrap" \
         --bind="esc:abort" \
         --color="$FZF_COLORS" \
@@ -990,6 +1002,9 @@ main() {
     exit 1
   fi
 
+  _CLEANUP_TMP_DIR=$(mktemp -d "${TMPDIR:-/tmp}/pkg-browser.XXXXXX" 2>/dev/null || mktemp -d)
+  trap '_cleanup' EXIT INT TERM
+
   _load_theme "$(_saved_theme)"
   [[ ! -f "$TAB_FILE" ]] && echo "info" > "$TAB_FILE"
   _ensure_cache
@@ -1005,15 +1020,16 @@ main() {
                      || preview_pos="right:48%:wrap"
 
     local script_path="${(%):-%x}"
-    local preview_cmd="zsh -c 'source ${(q)script_path}; _pkg_preview {2}' 2>/dev/null"
+    local preview_cmd="zsh -c 'source \"\$1\"; _pkg_preview \"\$2\"' -- ${(q)script_path} {2}"
 
-    local tmplist; tmplist=$(mktemp)
+    local tmplist="$_CLEANUP_TMP_DIR/tmplist"
     _build_list "$mode" > "$tmplist"
 
-    local toggle_flag;     toggle_flag=$(mktemp);     rm -f "$toggle_flag"
-    local filesearch_flag; filesearch_flag=$(mktemp); rm -f "$filesearch_flag"
-    local theme_flag;      theme_flag=$(mktemp);      rm -f "$theme_flag"
-    local tab_flag;        tab_flag=$(mktemp);        rm -f "$tab_flag"
+    local toggle_flag="$_CLEANUP_TMP_DIR/toggle"
+    local filesearch_flag="$_CLEANUP_TMP_DIR/filesearch"
+    local theme_flag="$_CLEANUP_TMP_DIR/theme"
+    local tab_flag="$_CLEANUP_TMP_DIR/tab"
+    rm -f "$toggle_flag" "$filesearch_flag" "$theme_flag" "$tab_flag"
 
     local -a fzf_border_label=()
     fzf --border-label="" --version &>/dev/null 2>&1 \
@@ -1030,11 +1046,11 @@ main() {
         --preview="$preview_cmd" \
         --preview-window="$preview_pos" \
         --bind="tab:toggle+down" \
-        --bind="ctrl-r:reload(zsh -c 'source ${(q)script_path} && rm -f ${(q)CACHE_TS} && _ensure_cache >/dev/null && _build_list ${(q)mode}')" \
+        --bind="ctrl-r:reload(zsh -c 'source \"\$1\" && rm -f \"\$2\" && _ensure_cache >/dev/null && _build_list \"\$3\"' -- ${(q)script_path} ${(q)CACHE_TS} ${(q)mode})" \
         --bind="ctrl-f:execute-silent(touch ${(q)toggle_flag})+abort" \
         --bind="ctrl-s:execute-silent(touch ${(q)filesearch_flag})+abort" \
         --bind="ctrl-y:execute-silent(touch ${(q)theme_flag})+abort" \
-        --bind="ctrl-t:execute-silent(touch ${(q)tab_flag}; zsh -c 'source ${(q)script_path}; _next_tab')+refresh-preview" \
+        --bind="ctrl-t:execute-silent(touch ${(q)tab_flag}; zsh -c 'source \"\$1\"; _next_tab' -- ${(q)script_path})+refresh-preview" \
         --bind="esc:abort" \
         --color="$FZF_COLORS" \
         --marker="󰄬" --pointer="❯" \
@@ -1086,7 +1102,7 @@ main() {
     read -r
   done
 
-  _spinner_stop
+  _cleanup
   print -P "${C_OK}Bye! 󰗠${C_RST}"
 }
 

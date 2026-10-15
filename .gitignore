@@ -1,0 +1,11 @@
+# Cache and temporary data
+.cache/
+*.log
+*.tmp
+*~
+
+# Operating System & Editor files
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
